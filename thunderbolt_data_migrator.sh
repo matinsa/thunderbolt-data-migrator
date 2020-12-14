@@ -1,18 +1,51 @@
 #!/bin/bash
 
 # Written by Ryan Ball
-# Originally obtained from: https://github.com/ryangball/thunderbolt-data-migrator
+# Updated by Matin Sasaluxanon
+# Version:0.2
+# Version History:
+#         2020-12-14 - 0.2
+#           * Updated rsync --exclude
+#             * '.localized'
+#             * 'Dropbox'
+#           *
+#           *
+#           *
+#
+#         2020-12-10 - 0.1
+#           * Updated icon location for 10.15
+#           * determine thunderbold mount drive on 10.15
+#           * add - check external file locations
+#           * updated initial message from a few seconds to until you see the symbols floating on the screen
+#
+#
+#
+# Reference
+# - Originally obtained from: https://github.com/ryangball/thunderbolt-data-migrator
+# - https://phoenixnap.com/kb/rsync-exclude-files-and-directories
+# - https://stackoverflow.com/questions/2609552/how-can-i-use-as-an-awk-field-separator
+# - https://gist.github.com/artifactsauce/1332529
+
 
 # This variable can be used if you are testing the script
 # Set to true while testing, the rsync will be bypassed and nothing permanent will done to this Mac
 # Set to false when used in production
 testing="true"  # (true|false)
+#testing="false"  # (true|false)
 
 # The full path of the log file
 log="/Library/Logs/tunderbolt_data_migration.log"
 
 # The main icon displayed in jamfHelper dialogs
-icon="/Applications/Utilities/Migration Assistant.app/Contents/Resources/MigrateAsst.icns"
+if [[ -e "/Applications/Utilities/Migration Assistant.app/Contents/Resources/MigrateAsst.icns" ]]; then
+    # 10.14 and below
+    icon="/Applications/Utilities/Migration Assistant.app/Contents/Resources/MigrateAsst.icns"
+  elif [[ -e "/System/Applications/Utilities/Migration Assistant.app/Contents/Resources/MigrateAsst.icns" ]];then
+    # 10.15
+    icon="/System/Applications/Utilities/Migration Assistant.app/Contents/Resources/MigrateAsst.icns"
+  else
+    icon="/System/Library/CoreServices/CoreTypes.bundle/Contents/Resources/ToolbarCustomizeIcon.icns"
+fi
 
 # The instructions that are shown in the first dialog to the user
 instructions="You can now migrate your data from your old Mac.
@@ -21,13 +54,17 @@ instructions="You can now migrate your data from your old Mac.
 
 2. Connect your old Mac and new Mac together using the supplied Thunderbolt cable.
 
-3. Power on your old Mac by normally pressing the power button WHILE holding the \"T\" button down for several seconds.
+3. Power on your old Mac by normally pressing the power button WHILE holding the \"T\" button down til you see the USB/Thunderbolt Symbols floating on the screen.
 
 We will attempt to automatically detect your old Mac now..."
 
 ###### Variables below this point are not intended to be modified ######
 scriptName=$(basename "$0")
 jamfHelper=/Library/Application\ Support/JAMF/bin/jamfHelper.app/Contents/MacOS/jamfHelper
+
+os_version=$(sw_vers -productVersion | awk  -F  "." '{print $1}')
+os_major_release=$(sw_vers -productVersion | awk  -F  "." '{print $2}')
+os_minor_release=$(sw_vers -productVersion | awk  -F  "." '{print $3}')
 
 function writelog () {
     DATE=$(date +%Y-%m-%d\ %H:%M:%S)
@@ -73,13 +110,19 @@ function perform_rsync () {
     jamfHelperPID=$(/bin/echo $!)
 
     if [[ "$testing" != "true" ]]; then
-    # Perform the rsync
-    /usr/bin/rsync -vrpog --progress --update --ignore-errors --force \
-    --exclude='Library' --exclude='Microsoft User Data' --exclude='.DS_Store' --exclude='.Trash' \
-    --log-file="$log" "$oldUserHome/" "/Users/$loggedInUser/"
+      # Perform the rsync
+      /usr/bin/rsync -vrpog --progress --update --ignore-errors --force \
+      --exclude='Library' \
+      #--exclude='Microsoft User Data' \ # exclude user's Microsoft User Data folder
+      --exclude='.DS_Store' \
+      --exclude='.localized' \
+      --exclude='.Trash' \
+      --exclude="/Dropbox/" \
+      #--exclude-from={'list.txt'} # use text file to define file, folder or type of file exclusion
+      --log-file="$log" "$oldUserHome/" "/Users/$loggedInUser/"
 
-    # Ensure permissions are correct
-    /usr/sbin/chown -R "$loggedInUser" "/Users/$loggedInUser" 2>/dev/null
+      # Ensure permissions are correct
+      /usr/sbin/chown -R "$loggedInUser" "/Users/$loggedInUser" 2>/dev/null
     else
         writelog "Sleeping for 10 to simulate rsync..."
         sleep 10
@@ -223,17 +266,36 @@ function detect_new_tbolt_volumes () {
         # Determine if an additional volume has been mounted since our first check, if so we will check to see if it is Thunderbolt
         # If so, we move on to find the user accounts on the newly connected Thunderbolt volume
         # If not we ignore the newly connected non-Thunderbolt volume
+        # for 10.14 and below
+        additional_opt1=$(/usr/bin/comm -13 <(echo "$diskListBefore") <(echo "$diskListAfter"))
+        # 10.15
+        additional_opt2=$(/usr/bin/comm -13 <(echo "$diskListBefore") <(echo "$diskListAfter") | tr '\n' ' ' | awk '{print $1}')
+
         if [[ "$diskCountBefore" -lt "$diskCountAfter" ]]; then
-            additional=$(/usr/bin/comm -13 <(echo "$diskListBefore") <(echo "$diskListAfter"))
-            isTBolt=$(/usr/sbin/diskutil info "$additional" | grep -B15 "Thunderbolt" | grep "Mount Point" | sed -n -e 's/^.*Volumes\///p')
-            if [[ -n "$isTBolt" ]]; then
-                tBoltVolume="$isTBolt"
-                writelog "\"/Volumes/$tBoltVolume\" has been detected as a new Thunderbolt volume; continuing."
-                ps -p "$jamfHelperPID" > /dev/null && kill "$jamfHelperPID"; wait "$jamfHelperPID" 2>/dev/null
-                auto_find_old_user
-            fi
+            if [[ $os_version == "11" ]]; then
+              additional=$additional_opt2
+            elif [[ $os_version == "10" ]]; then
+              if [[ $os_major_release == "15" ]]; then
+                additional=$additional_opt2
+              elif [[ $os_major_release == "14" ]]; then
+                additional=$additional_opt1
+              elif [[ $os_major_release == "13" ]]; then
+                additional=$additional_opt1
+              else
+                additional=$additional_opt1
+              fi
+            else
+            additional=$additional_opt2
         fi
-        timer=$((timer-5))
+        isTBolt=$(/usr/sbin/diskutil info "$additional" | grep -B15 "Thunderbolt" | grep "Mount Point" | sed -n -e 's/^.*Volumes\///p')
+          if [[ -n "$isTBolt" ]]; then
+              tBoltVolume="$isTBolt"
+              writelog "\"/Volumes/$tBoltVolume\" has been detected as a new Thunderbolt volume; continuing."
+              ps -p "$jamfHelperPID" > /dev/null && kill "$jamfHelperPID"; wait "$jamfHelperPID" 2>/dev/null
+              auto_find_old_user
+          fi
+      fi
+      timer=$((timer-5))
     done
     # At this point the timer has run out, kill the background jamfHelper dialog and let the user know
     ps -p "$jamfHelperPID" > /dev/null && kill "$jamfHelperPID"; wait "$jamfHelperPID" 2>/dev/null

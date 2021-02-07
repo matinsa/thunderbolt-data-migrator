@@ -4,13 +4,22 @@
 # Updated by Matin Sasaluxanon
 # Version:0.2
 # Version History:
+#         2020-01-02 - 0.2.1
+#           * Updated rsync --exclude
+#             * Jamf
+#
 #         2020-12-14 - 0.2
 #           * Updated rsync --exclude
 #             * '.localized'
 #             * 'Dropbox'
-#           *
-#           *
-#           *
+#             * added exclusions for icloud account login issues
+#             * added exclusions to not transfer over recent ms office open files list
+#             * Folders to Exclude
+#               * logs
+#               * ByHost
+#               * iCloud Drive
+#               * Accounts
+#
 #
 #         2020-12-10 - 0.1
 #           * Updated icon location for 10.15
@@ -110,17 +119,65 @@ function perform_rsync () {
     jamfHelperPID=$(/bin/echo $!)
 
     if [[ "$testing" != "true" ]]; then
-      # Perform the rsync
+####### Perform the rsync####################################################
       /usr/bin/rsync -vrpog --progress --update --ignore-errors --force \
-      --exclude='Library' \
-      #--exclude='Microsoft User Data' \ # exclude user's Microsoft User Data folder
+      # Hidden folders or file types
       --exclude='.DS_Store' \
       --exclude='.localized' \
       --exclude='.Trash' \
+      #### Folders ####
+      #--exclude="" \
+      #--exclude='Microsoft User Data' \ # exclude user's Microsoft User Data folder
+      #--exclude='Library' \
+      --exclude='Logs' \
+      --exclude='ByHost' \
       --exclude="/Dropbox/" \
+      --exclude="/iCloud Drive/" \
+      ### Exclude to avoid iCloud Login Issues after transfer ###
+      --exclude="/Library/Application Support/iCloud/Accounts/" \
+      --exclude="/Library/Accounts/" \
+      #### Files ####
+      #--exclude="" \
+      ### Exclude Jamf Apps and Binaries ### -> https://www.jamf.com/jamf-nation/articles/100/components-installed-on-managed-computers
+      #--exclude="/usr/local/jamf/bin/jamf" \
+      #--exclude="/usr/local/jamf/bin/jamfagent" \
+      #--exclude="/usr/local/bin/jamf" \
+      #--exclude="/usr/local/bin/jamfagent" \
+      #--exclude="/Library/Application Support/JAMF/Jamf.app" \
+      #--exclude="/usr/local/jamf/bin/jamfAAD" \
+      #--exclude="/Library/LaunchDaemons/com.jamfsoftware.task.1.plist" \
+      #--exclude="/Library/LaunchDaemons/com.jamfsoftware.startupItem.plist" \
+      #--exclude="/Library/LaunchDaemons/com.jamfsoftware.jamf.daemon.plist" \
+      #--exclude="/Library/LaunchAgents/com.jamfsoftware.jamf.agent.plist" \
+      #--exclude="/Library/LaunchDaemons/com.jamf.management.daemon.plist" \
+      #--exclude="/Library/LaunchAgents/com.jamf.management.agent.plist" \
+      #--exclude="/Library/LaunchAgents/com.jamf.management.jamfAAD.agent.plist" \
+      #--exclude="/Library/Preferences/com.jamf.management.jamfAAD.plist" \
+      #--exclude="/Library/LaunchAgents/com.jamf.management.jamfAAD.clean.agent.plist" \
+      #--exclude="/Library/Preferences/com.jamfsoftware.jamf.plist" \
+      #--exclude="/var/root/Library/Preferences/com.apple.loginwindow.plist" \
+      #--exclude="" \
+      #--exclude="" \
+      #--exclude="" \
+      #--exclude="" \
+      #--exclude="" \
+      #--exclude="" \
+      #--exclude="" \
+      #--exclude="" \
+      #--exclude="" \
+      #--exclude="" \
+      #--exclude="" \
+      #--exclude="" \
+
+      ### Exclude Microsoft Office recent files open list ###
+      --exclude="com.microsoft.Word.securebookmarks.plist" \
+      --exclude="com.microsoft.Excel.securebookmarks.plist" \
+      --exclude="com.microsoft.PowerPoint.securebookmarks.plist" \
+      ### Exclude to avoid iCloud Login Issues after transfer ###
+      --exclude="MobileMeAccounts.plist" \
       #--exclude-from={'list.txt'} # use text file to define file, folder or type of file exclusion
       --log-file="$log" "$oldUserHome/" "/Users/$loggedInUser/"
-
+##############################################################################
       # Ensure permissions are correct
       /usr/sbin/chown -R "$loggedInUser" "/Users/$loggedInUser" 2>/dev/null
     else

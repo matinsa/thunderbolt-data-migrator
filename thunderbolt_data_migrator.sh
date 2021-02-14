@@ -129,10 +129,13 @@ function perform_rsync () {
       #--exclude="" \
       #--exclude='Microsoft User Data' \ # exclude user's Microsoft User Data folder
       #--exclude='Library' \
+      --exclude='/__MACOSX/' \
       --exclude='Logs' \
       --exclude='ByHost' \
       --exclude="/Dropbox/" \
       --exclude="/iCloud Drive/" \
+      --exclude="/Creative Cloud Files/" \
+      --exclude="/Google Drive/" \   
       ### Exclude to avoid iCloud Login Issues after transfer ###
       --exclude="/Library/Application Support/iCloud/Accounts/" \
       --exclude="/Library/Accounts/" \

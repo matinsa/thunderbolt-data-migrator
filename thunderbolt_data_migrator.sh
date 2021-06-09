@@ -2,8 +2,10 @@
 
 # Written by Ryan Ball
 # Updated by Matin Sasaluxanon
-Version=00.00.04
+Version=00.00.05
 # Version History:
+#         2021-06-09 - 00.00.05
+#           * fixed rsync to allow for commenting options if needed
 #         2021-05-03 - 00.00.04
 #           * fix prompt for entire home directory or date only
 #           * added prompt variable to jamfhelper call
@@ -134,38 +136,60 @@ function perform_rsync () {
 
     if [[ "$testing" != "true" ]]; then
       if [[ "$prompt" = "button returned:Entire Home Directory" ]] || [[ "$prompt" = "Entire Home Directory" ]]; then
-	writelog "--> Entire Home Directory Only"
+      	writelog "--> Entire Home Directory Only"
         ####### Perform the rsync####################################################
-	/usr/bin/rsync -vrpog --progress --update --ignore-errors --force --exclude='.Trash' --exclude='.DS_Store' --exclude='.localized' --exclude='Logs' --exclude='ByHost' --exclude="/Dropbox/" --exclude="/iCloud Drive/" --exclude="/Library/Application Support/iCloud/Accounts/" --exclude="/Library/Accounts/" --exclude="com.microsoft.Word.securebookmarks.plist" --exclude="com.microsoft.Excel.securebookmarks.plist" --exclude="com.microsoft.PowerPoint.securebookmarks.plist" --exclude="MobileMeAccounts.plist" --log-file="$log" "$oldUserHome/" "/Users/$loggedInUser/" >> $DIR_TMP
 
-        #/usr/bin/rsync -vrpog --progress --update --ignore-errors --force \
-        # Hidden folders or file types
-        #--exclude='.DS_Store' \
-        #--exclude='.localized' \
-        #--exclude='.Trash' \
-        # Folders
-        #--exclude='Microsoft User Data' \ # exclude user's Microsoft User Data folder
-        #--exclude='Library' \
-        #--exclude='Logs' \
-        #--exclude='ByHost' \
-        #--exclude="/Dropbox/" \
-        #--exclude="/iCloud Drive/" \
-        ### Exclude to avoid iCloud Login Issues after transfer ###
-        #--exclude="/Library/Application Support/iCloud/Accounts/" \
-        #--exclude="/Library/Accounts/" \
-        # files
-        #--exclude="com.microsoft.Word.securebookmarks.plist" \
-        #--exclude="com.microsoft.Excel.securebookmarks.plist" \
-        #--exclude="com.microsoft.PowerPoint.securebookmarks.plist" \
-        ### Exclude to avoid iCloud Login Issues after transfer ###
-        #--exclude="MobileMeAccounts.plist" \
-        #--exclude-from={'list.txt'} # use text file to define file, folder or type of file exclusion
-        #--log-file="$log" "$oldUserHome/" "/Users/$loggedInUser/"
+        cmd_options=(
+          # INSTRUCTIONS: Use Comments to disable option in the array if needed
+          -vrpog
+          --progress
+          --update
+          --ignore-errors
+          --force
+          # Hidden Files or Folders
+          --exclude='.Trash'
+          --exclude='.DS_Store'
+          --exclude='.localized'
+          # Folders
+          --exclude='Logs'
+          --exclude='ByHost'
+          --exclude="/Dropbox/"
+          --exclude="/iCloud Drive/"
+          --exclude="/Library/Application Support/iCloud/Accounts/"
+          --exclude="/Library/Accounts/"
+          # Files
+          --exclude="com.microsoft.Word.securebookmarks.plist"
+          --exclude="com.microsoft.Excel.securebookmarks.plist"
+          --exclude="com.microsoft.PowerPoint.securebookmarks.plist"
+          --exclude="MobileMeAccounts.plist"
+          # Log
+          --log-file="$log"
+        )
+        /usr/bin/rsync "${cmd_options[@]}" "$oldUserHome/" "/Users/$loggedInUser/" >> $DIR_TMP
+
         ##############################################################################
       elif [[ "$prompt" = "button returned:Data Only" ]] || [[ "$prompt" = "Data Only" ]]; then
-	writelog "--> Data Only"
+	      writelog "--> Data Only"
         ####### Perform the rsync####################################################
-	/usr/bin/rsync -vrpog --progress --update --ignore-errors --force --exclude='.Trash' --exclude='.DS_Store' --exclude='.localized' --exclude='Library' --log-file="$log" "$oldUserHome/" "/Users/$loggedInUser/" >> $DIR_TMP
+
+        cmd_options=(
+          # INSTRUCTIONS: Use Comments to disable option in the array if needed
+          -vrpog
+          --progress
+          --update
+          --ignore-errors
+          --force
+          # Hidden Files or Folders
+          --exclude='.Trash'
+          --exclude='.DS_Store'
+          --exclude='.localized'
+          # Folders
+          --exclude='Library'
+          # Log
+          --log-file="$log"
+        )
+        /usr/bin/rsync "${cmd_options[@]}" "$oldUserHome/" "/Users/$loggedInUser/" >> $DIR_TMP
+
         ##############################################################################
       fi
       # Ensure permissions are correct

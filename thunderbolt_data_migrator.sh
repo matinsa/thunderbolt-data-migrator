@@ -2,12 +2,14 @@
 
 # Written by Ryan Ball
 # Updated by Matin Sasaluxanon
-# Version:0.2
+Version=00.00.04
 # Version History:
-#         2020-01-02 - 0.2.1
-#           * Updated rsync --exclude
-#             * Jamf
-#
+#         2021-05-03 - 00.00.04
+#           * fix prompt for entire home directory or date only
+#           * added prompt variable to jamfhelper call
+#           * fix rsync multi line command.  macOS 10.15.7 running into issues with comments
+#         2021-04-28 - 00.00.03
+#           * added prompt for user to decide if user would like to transfer data only or entire home directory during this process
 #         2020-12-14 - 0.2
 #           * Updated rsync --exclude
 #             * '.localized'
@@ -19,7 +21,6 @@
 #               * ByHost
 #               * iCloud Drive
 #               * Accounts
-#
 #
 #         2020-12-10 - 0.1
 #           * Updated icon location for 10.15
@@ -34,16 +35,17 @@
 # - https://phoenixnap.com/kb/rsync-exclude-files-and-directories
 # - https://stackoverflow.com/questions/2609552/how-can-i-use-as-an-awk-field-separator
 # - https://gist.github.com/artifactsauce/1332529
-
+# - https://www.systutorials.com/how-to-add-inline-comments-for-multi-line-command-in-bash-script/
+# - https://stackoverflow.com/questions/58416663/how-do-i-set-a-variable-with-the-output-of-rsync-while-keeping-the-format
 
 # This variable can be used if you are testing the script
 # Set to true while testing, the rsync will be bypassed and nothing permanent will done to this Mac
 # Set to false when used in production
-testing="true"  # (true|false)
-#testing="false"  # (true|false)
+#testing="true"  # (true|false)
+testing="false"  # (true|false)
 
 # The full path of the log file
-log="/Library/Logs/tunderbolt_data_migration.log"
+log="/Library/Logs/thunderbolt_data_migration.log"
 
 # The main icon displayed in jamfHelper dialogs
 if [[ -e "/Applications/Utilities/Migration Assistant.app/Contents/Resources/MigrateAsst.icns" ]]; then
@@ -113,76 +115,64 @@ function wait_for_jamfHelper () {
 }
 
 function perform_rsync () {
+    # Prompt user to click transfer entire home directory or just data
+    promptMessage="Would you like to transfer your entire home directory or just the data in your home directory?"
+    promptChoice1="Entire Home Directory"
+    promptChoice2="Data Only"
+    prompt=$( /usr/bin/osascript -e "display dialog \"$promptMessage\" buttons {\"$promptChoice1\", \"$promptChoice2\"}" | awk -F: {'print $2'} )
+    #writelog "--> prompt=$prompt"
+
     writelog "Beginning rsync transfer..."
-    "$jamfHelper" -windowType fs -title "" -icon "$icon" -heading "Please wait as we transfer your old data to your new Mac..." \
+    "$jamfHelper" -windowType fs -title "" -icon "$icon" -heading "Please wait as we transfer your $prompt to your new Mac..." \
         -description "This might take a few minutes. Once the transfer is complete this screen will close." &>/dev/null &
     jamfHelperPID=$(/bin/echo $!)
 
-    if [[ "$testing" != "true" ]]; then
-####### Perform the rsync####################################################
-      /usr/bin/rsync -vrpog --progress --update --ignore-errors --force \
-      # Hidden folders or file types
-      --exclude='.DS_Store' \
-      --exclude='.localized' \
-      --exclude='.Trash' \
-      #### Folders ####
-      #--exclude="" \
-      #--exclude='Microsoft User Data' \ # exclude user's Microsoft User Data folder
-      #--exclude='Library' \
-      --exclude='/__MACOSX/' \
-      --exclude='Logs' \
-      --exclude='ByHost' \
-      --exclude="/Dropbox/" \
-      --exclude="/iCloud Drive/" \
-      --exclude="/Creative Cloud Files/" \
-      --exclude="/Google Drive/" \   
-      ### Exclude to avoid iCloud Login Issues after transfer ###
-      --exclude="/Library/Application Support/iCloud/Accounts/" \
-      --exclude="/Library/Accounts/" \
-      #### Files ####
-      #--exclude="" \
-      ### Exclude Jamf Apps and Binaries ### -> https://www.jamf.com/jamf-nation/articles/100/components-installed-on-managed-computers
-      #--exclude="/usr/local/jamf/bin/jamf" \
-      #--exclude="/usr/local/jamf/bin/jamfagent" \
-      #--exclude="/usr/local/bin/jamf" \
-      #--exclude="/usr/local/bin/jamfagent" \
-      #--exclude="/Library/Application Support/JAMF/Jamf.app" \
-      #--exclude="/usr/local/jamf/bin/jamfAAD" \
-      #--exclude="/Library/LaunchDaemons/com.jamfsoftware.task.1.plist" \
-      #--exclude="/Library/LaunchDaemons/com.jamfsoftware.startupItem.plist" \
-      #--exclude="/Library/LaunchDaemons/com.jamfsoftware.jamf.daemon.plist" \
-      #--exclude="/Library/LaunchAgents/com.jamfsoftware.jamf.agent.plist" \
-      #--exclude="/Library/LaunchDaemons/com.jamf.management.daemon.plist" \
-      #--exclude="/Library/LaunchAgents/com.jamf.management.agent.plist" \
-      #--exclude="/Library/LaunchAgents/com.jamf.management.jamfAAD.agent.plist" \
-      #--exclude="/Library/Preferences/com.jamf.management.jamfAAD.plist" \
-      #--exclude="/Library/LaunchAgents/com.jamf.management.jamfAAD.clean.agent.plist" \
-      #--exclude="/Library/Preferences/com.jamfsoftware.jamf.plist" \
-      #--exclude="/var/root/Library/Preferences/com.apple.loginwindow.plist" \
-      #--exclude="" \
-      #--exclude="" \
-      #--exclude="" \
-      #--exclude="" \
-      #--exclude="" \
-      #--exclude="" \
-      #--exclude="" \
-      #--exclude="" \
-      #--exclude="" \
-      #--exclude="" \
-      #--exclude="" \
-      #--exclude="" \
+    #writelog "--> testing=$testing"
+    #writelog "--> prompt=$prompt"
 
-      ### Exclude Microsoft Office recent files open list ###
-      --exclude="com.microsoft.Word.securebookmarks.plist" \
-      --exclude="com.microsoft.Excel.securebookmarks.plist" \
-      --exclude="com.microsoft.PowerPoint.securebookmarks.plist" \
-      ### Exclude to avoid iCloud Login Issues after transfer ###
-      --exclude="MobileMeAccounts.plist" \
-      #--exclude-from={'list.txt'} # use text file to define file, folder or type of file exclusion
-      --log-file="$log" "$oldUserHome/" "/Users/$loggedInUser/"
-##############################################################################
+	DIR_TMP=/var/tmp/output.txt
+
+    if [[ "$testing" != "true" ]]; then
+      if [[ "$prompt" = "button returned:Entire Home Directory" ]] || [[ "$prompt" = "Entire Home Directory" ]]; then
+	writelog "--> Entire Home Directory Only"
+        ####### Perform the rsync####################################################
+	/usr/bin/rsync -vrpog --progress --update --ignore-errors --force --exclude='.Trash' --exclude='.DS_Store' --exclude='.localized' --exclude='Logs' --exclude='ByHost' --exclude="/Dropbox/" --exclude="/iCloud Drive/" --exclude="/Library/Application Support/iCloud/Accounts/" --exclude="/Library/Accounts/" --exclude="com.microsoft.Word.securebookmarks.plist" --exclude="com.microsoft.Excel.securebookmarks.plist" --exclude="com.microsoft.PowerPoint.securebookmarks.plist" --exclude="MobileMeAccounts.plist" --log-file="$log" "$oldUserHome/" "/Users/$loggedInUser/" >> $DIR_TMP
+
+        #/usr/bin/rsync -vrpog --progress --update --ignore-errors --force \
+        # Hidden folders or file types
+        #--exclude='.DS_Store' \
+        #--exclude='.localized' \
+        #--exclude='.Trash' \
+        # Folders
+        #--exclude='Microsoft User Data' \ # exclude user's Microsoft User Data folder
+        #--exclude='Library' \
+        #--exclude='Logs' \
+        #--exclude='ByHost' \
+        #--exclude="/Dropbox/" \
+        #--exclude="/iCloud Drive/" \
+        ### Exclude to avoid iCloud Login Issues after transfer ###
+        #--exclude="/Library/Application Support/iCloud/Accounts/" \
+        #--exclude="/Library/Accounts/" \
+        # files
+        #--exclude="com.microsoft.Word.securebookmarks.plist" \
+        #--exclude="com.microsoft.Excel.securebookmarks.plist" \
+        #--exclude="com.microsoft.PowerPoint.securebookmarks.plist" \
+        ### Exclude to avoid iCloud Login Issues after transfer ###
+        #--exclude="MobileMeAccounts.plist" \
+        #--exclude-from={'list.txt'} # use text file to define file, folder or type of file exclusion
+        #--log-file="$log" "$oldUserHome/" "/Users/$loggedInUser/"
+        ##############################################################################
+      elif [[ "$prompt" = "button returned:Data Only" ]] || [[ "$prompt" = "Data Only" ]]; then
+	writelog "--> Data Only"
+        ####### Perform the rsync####################################################
+	/usr/bin/rsync -vrpog --progress --update --ignore-errors --force --exclude='.Trash' --exclude='.DS_Store' --exclude='.localized' --exclude='Library' --log-file="$log" "$oldUserHome/" "/Users/$loggedInUser/" >> $DIR_TMP
+        ##############################################################################
+      fi
       # Ensure permissions are correct
       /usr/sbin/chown -R "$loggedInUser" "/Users/$loggedInUser" 2>/dev/null
+
+	OUTPUT=$(cat $DIR_TMP)
+	rm $DIR_TMP
     else
         writelog "Sleeping for 10 to simulate rsync..."
         sleep 10
@@ -190,6 +180,8 @@ function perform_rsync () {
 
     ps -p "$jamfHelperPID" > /dev/null && kill "$jamfHelperPID"; wait "$jamfHelperPID" 2>/dev/null
     writelog "Finished rsync transfer."
+    sleep 3
+    echo -e "$OUTPUT"
     /usr/sbin/diskutil unmount "/Volumes/$tBoltVolume" &>/dev/null
     finish 0
 }
@@ -377,7 +369,7 @@ wait_for_jamfHelper
 "$jamfHelper" -windowType utility -title "User Data Transfer" -icon "$icon" -description "$instructions" -button1 "Cancel" -button2 "I'll Pick" -calcelButton "1" -defaultButton "1" > /tmp/output.txt &
 jamfHelperPID=$(/bin/echo $!)
 
-# Attempt to detect a new thunderbolt volume, other funtions are chained together
+# Attempt to detect a new thunderbolt volume, other functions are chained together
 detect_new_tbolt_volumes
 
 finish 0

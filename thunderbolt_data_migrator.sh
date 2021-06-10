@@ -2,7 +2,7 @@
 
 # Written by Ryan Ball
 # Updated by Matin Sasaluxanon
-Version=00.00.05
+version=00.00.05
 # Version History:
 #         2021-06-09 - 00.00.05
 #           * fixed rsync to allow for commenting options if needed
@@ -382,6 +382,8 @@ function detect_new_tbolt_volumes () {
 
 writelog " "
 writelog "======== Starting $scriptName ========"
+writelog "Version: $version "
+writelog " "
 
 # Wait for a GUI
 wait_for_gui
